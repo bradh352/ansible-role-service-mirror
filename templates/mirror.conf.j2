@@ -1,0 +1,24 @@
+[DEFAULT]
+bwlimit={{ mirror_bwlimit|default(100) }}
+
+{% for site in mirror_sites %}
+[{{ site.id }}]
+name={{ site.name }}
+type={{ site.type }}
+remote={{ site.remote }}
+dest={{ mirror_destination }}/{{ site.id }}
+{% if type == "rsync" %}
+type=rsync
+{%   if site.exclude is defined %}
+exclude={{ site.exclude|join(",") }}
+{%   endif %}
+{%   if site.precheck_file is defined %}
+precheck_file={{ site.precheck_file }}
+{%   endif %}
+{%   if site.firststage_exclude is defined %}
+firststage_exclude={{ site.firststage_exclude|join(",") }}
+{%   endif %}
+{% else %}
+{{ notdefiend | mandatory(msg='type ' ~ site.type ~ ' unknown') }}
+{% endif %}
+{% endfor %}
