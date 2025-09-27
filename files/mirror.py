@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 
 import configparser
+import fcntl
+import getpass
 import os
 import subprocess
 import sys
 from typing import List, Optional, Tuple
+
+LOCK_FILE = "/var/run/mirror/mirror.lock"
 
 def ensuredir(path: str) -> Tuple[bool, Optional[str]]:
     """
@@ -136,7 +140,6 @@ def rsync(
 
     common_args = [
         "rsync",
-        "--verbose",
         "--recursive",
         "--links",
         "--perms",    # Not sure if this is right
@@ -195,7 +198,7 @@ def mirror_sect(config, section_name: str, bwlimit_mbps: int) -> bool:
         if "precheck_file" in config:
             precheck_file = config["precheck_file"]
         if "exclude" in config:
-            exclude = config["precheck_file"].split(",")
+            exclude = config["exclude"].split(",")
         if "firststage_exclude" in config:
             firststage_exclude = config["firststage_exclude"].split(",")
         return rsync(
@@ -225,6 +228,7 @@ def mirror(config_path: str) -> bool:
     # Config format
     # [DEFAULT]
     # bwlimit=mbps
+    # user=nginx
     #
     # [shortname]
     # name=long name
@@ -239,6 +243,10 @@ def mirror(config_path: str) -> bool:
     if "DEFAULT" in config:
         if "bwlimit" in config["DEFAULT"]:
             bwlimit_mbps = int(config["DEFAULT"]["bwlimit"])
+        if "user" in config["DEFAULT"]:
+            if config["DEFAULT"]["user"] != getpass.getuser():
+                print(f"Expected to run as user {config['DEFAULT']['user']} but running as {getpass.getuser()}, exiting");
+                return False
 
     failed_mirrors = []
 
@@ -262,7 +270,27 @@ def mirror(config_path: str) -> bool:
     print(f"* ALL MIRRORS SUCCEEDED")
     return True
 
-if not mirror("/etc/mirror.conf"):
+def prevent_concurrent_run():
+    try:
+        lock_fd = open(LOCK_FILE, 'w')
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return lock_fd
+    except IOError:
+        print(f"Error: Another instance of the script is already running. Exiting.")
+        sys.exit(1)
+
+def release_lock(lock_fd):
+    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    os.remove(LOCK_FILE)
+
+success = False;
+lock_handle = prevent_concurrent_run()
+try:
+    success = mirror("/etc/mirror.conf")
+finally:
+    release_lock(lock_handle)
+
+if not success:
     sys.exit(1)
 
 sys.exit(0)

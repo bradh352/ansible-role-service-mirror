@@ -5,9 +5,15 @@
       - "nginx"
       - "python3-certbot"
       - "python3-certbot-nginx"
-      - "{{ 'python3-certbot-dns-cloudflare' if mirror_dns_provider == 'cloudflare' else omit }}"
     state: present
   when: ansible_os_family == 'Debian'
+
+- name: "APT: Install certbot cloudflare provider"
+  ansible.builtin.apt:
+    pkg:
+      - "python3-certbot-dns-cloudflare"
+    state: present
+  when: ansible_os_family == 'Debian' and mirror_dns_provider == 'cloudflare'
 
 - name: "DNF: Install nginx"
   ansible.builtin.dnf:
@@ -15,9 +21,15 @@
       - "nginx"
       - "python3-certbot"
       - "python3-certbot-nginx"
-      - "{{ 'python3-certbot-dns-cloudflare' if mirror_dns_provider == 'cloudflare' else omit }}"
     state: present
   when: ansible_os_family == 'RedHat'
+
+- name: "DNF: Install certbot cloudflare provider"
+  ansible.builtin.dnf:
+    name:
+      - "python3-certbot-dns-cloudflare"
+    state: present
+  when: ansible_os_family == 'RedHat' and mirror_dns_provider == 'cloudflare'
 
 - name: "UFW: enable http"
   community.general.ufw:
@@ -54,10 +66,32 @@
     owner: root
     mode: "755"
 
+- name: "Make lock directory"
+  file:
+    path: /var/run/mirror
+    owner: nginx
+    mode: "750"
+    state: directory
+
+- name: "Make mirror directory"
+  file:
+    path: "{{ mirror_destination }}"
+    mode: "775"
+    state: directory
+    owner: nginx
+    setype: httpd_sys_content_t
+
+- name: "Install cron task"
+  copy:
+    src: mirror.cron
+    dest: /etc/cron.d/mirror
+    owner: root
+    mode: "644"
+
 - name: "Install nginx configuration"
   template:
     src: nginx-mirror.j2
-    dest: /etc/nginx/sites-available/mirror
+    dest: "{{ '/etc/nginx/sites-available/mirror' if ansible_os_family == 'Debian' else '/etc/nginx/conf.d/mirror.conf' }}"
     owner: root
     mode: "644"
   notify: nginx_restart
@@ -69,6 +103,7 @@
     state: link
     owner: root
   notify: nginx_restart
+  when: ansible_os_family == 'Debian'
 
 - name: "CertBot: save cloudflare credentials"
   copy:
@@ -84,7 +119,7 @@
     content: 'dns_godaddy_api_token="{{ mirror_dns_apikey }}"'
     owner: root
     mode: "600"
-  when: cloudstack_dns_provider == "godaddy"
+  when: mirror_dns_provider == "godaddy"
 
 - name: "CertBot: Godaddy: Install Scripts"
   copy:

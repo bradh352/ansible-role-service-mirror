@@ -1,13 +1,13 @@
 [DEFAULT]
 bwlimit={{ mirror_bwlimit|default(100) }}
+user=nginx
 
 {% for site in mirror_sites %}
 [{{ site.id }}]
 name={{ site.name }}
-type={{ site.type }}
 remote={{ site.remote }}
 dest={{ mirror_destination }}/{{ site.id }}
-{% if type == "rsync" %}
+{% if site.type == "rsync" %}
 type=rsync
 {%   if site.exclude is defined %}
 exclude={{ site.exclude|join(",") }}
