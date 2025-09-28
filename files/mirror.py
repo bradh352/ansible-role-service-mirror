@@ -210,6 +210,7 @@ def debmirror(
         [
             "debmirror",
             "--method=rsync",
+            "--diff=none", # Typically most efficient when used with rsync method
             f"--host={host}",
             f"--root={remote_dir}",
             f"--dist={','.join(dists)}",
