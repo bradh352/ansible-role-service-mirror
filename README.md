@@ -34,7 +34,7 @@ This role is designed to deploy a repository mirror.
     deletion during that first sync.  Necessary for debian-based mirrors.
     E.g. `[ "Packages*", "Sources*", "Release*", "InRelease" ]`
   - `deb_dists`: Required for `debmirror`. List of distributions to sync.
-    E.g. `[ "jammy", "noble" ]`
+    E.g. `["jammy", "jammy-updates", "jammy-security", "noble", "noble-updates", "noble-security"]`
   - `deb_arch`: List of architectures to sync for `debmirror`. Defaults to
     `[ "amd64" ]` if not specified.
   - `deb_sections`: List of debian sections to sync for `debmirror`. Defaults to
