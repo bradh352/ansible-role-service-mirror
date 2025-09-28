@@ -38,7 +38,7 @@ def ensuredir(path: str) -> Tuple[bool, Optional[str]]:
 
 def args_to_cmdline(args: List[str]) -> str:
     def quote_arg(arg):
-        if " " not in arg and '"' not in arg and "\\" not in arg:
+        if " " not in arg and '"' not in arg and "\\" not in arg and "*" not in arg and "|" not in arg:
             return arg
         if "\\" in arg:
             arg = arg.replace("\\", "\\\\")
@@ -61,18 +61,18 @@ def run_process(args: List[str], capture_output: bool = False) -> Tuple[bool, Op
       success[bool]: Whether or not command was successful
       stdout[Optional[str]]: Stdout string output if capture_output=True
     """
-    print("\n* Running: {}".format(args_to_cmdline(args)))
+    print("\n* Running: {}".format(args_to_cmdline(args)), flush=True)
     try:
         result = subprocess.run(args, capture_output=capture_output)
     except Exception as e:
-        print(f"* FAILED: {str(e)}")
+        print(f"* FAILED: {str(e)}", flush=True)
         return False, None
 
     if result.returncode != 0:
-        print(f"* FAILED (rc={result.returncode})")
+        print(f"* FAILED (rc={result.returncode})", flush=True)
         return False, None
 
-    print(f"* SUCCESS")
+    print(f"* SUCCESS", flush=True)
     return True, None if not capture_output else result.stdout.decode('utf-8')
 
 
@@ -119,7 +119,7 @@ def rsync(
         dest = dest + "/"
 
     if precheck_file is not None:
-        print("* Running precheck")
+        print("* Running precheck", flush=True)
         success, stdout = run_process(
             [
                 "rsync",
@@ -135,7 +135,7 @@ def rsync(
             return False
 
         if stdout is None or len(stdout) == 0:
-            print("* No changes, skipping sync")
+            print("* No changes, skipping sync", flush=True)
             return True
 
     common_args = [
@@ -147,8 +147,10 @@ def rsync(
         "--devices",  # Doesn't seem right
         "--specials", # Doesn't seem right
         "--sparse",
+        "--partial",
         "--hard-links",
         "--exclude=*.~tmp~",
+        "--delete-excluded",
         f"--bwlimit={bwlimit_mbps * 1024}"
     ]
     if exclude is not None:
@@ -166,51 +168,116 @@ def rsync(
 
     final_args = [ "--delete-delay", "--delay-updates" ]
 
-    print("* Running Final Sync")
+    print("* Running Final Sync", flush=True)
     success, _ = run_process(common_args + final_args + [ remote, dest ])
+    return success
+
+def debmirror(
+    host: str,
+    remote_dir: str,
+    dest: str,
+    dists: List[str],
+    arch: List[str],
+    sections: List[str],
+    bwlimit_mbps: int = 100
+) -> bool:
+    """
+    Perform sync of remote repository using debmirror.
+
+    host [str]:           Remote hostname
+    remote_dir [str]:     Remote directory
+    dest [str]:           Destination directory for files
+    dists [List[str]]:    List of distributions, e.g. [ "jammy", "noble" ]
+    arch [List[str]]:     List of archictectures, e.g. [ "amd64", "aarch64" ]
+    sections [List[str]]: List of sections, e.g.
+                          [ "main", "contrib", "non-free", "main/debian-installer" ]
+    bwlimit_mbps[int]:    Bandwidth limit. Defaults to 100Mbps.
+    Returns:
+      success[bool]: Whether or not sync completed successfully
+
+    Output:
+      stdout/stderr are output from the upstream process.
+    """
+    success, errmsg = ensuredir(dest)
+    if not success:
+        print(f"destination '{dest}' invalid: {errmsg}", file=sys.stderr)
+        return False
+
+    if not dest.endswith("/"):
+        dest = dest + "/"
+
+    success, _ = run_process(
+        [
+            "debmirror",
+            "--method=rsync",
+            f"--host={host}",
+            f"--root={remote_dir}",
+            f"--dist={','.join(dists)}",
+            f"--arch={','.join(arch)}",
+            f"--section={','.join(sections)}",
+            "--rsync-batch=10000", # Defaults to 200 which seems low
+            "--no-check-gpg",
+            f"--rsync-options=-aIL --partial --bwlimit={bwlimit_mbps * 1024}",
+            dest,
+        ]
+    )
     return success
 
 
 def mirror_sect(config, section_name: str, bwlimit_mbps: int) -> bool:
     print("")
-    print("==========")
+    print("==========", flush=True)
     if not "name" in config:
-        print(f"Missing name in {section_name}")
+        print(f"Missing name in {section_name}", flush=True)
         return False
 
     if not "type" in config:
-        print(f"Missing type in {config['name']}")
+        print(f"Missing type in {config['name']}", flush=True)
         return False
 
-    if not "remote" in config:
-        print(f"Missing remote in {config['name']}")
+    if not "host" in config:
+        print(f"Missing host in {config['name']}", flush=True)
+        return False
+
+    if not "remote_dir" in config:
+        print(f"Missing remote_dir in {config['name']}", flush=True)
         return False
 
     if not "dest" in config:
-        print(f"Missing dest in {config['name']}")
+        print(f"Missing dest in {config['name']}", flush=True)
         return False
 
-    print(f"* Syncing {config['name']}")
+    print(f"* Syncing {config['name']}", flush=True)
     if config["type"] == "rsync":
         precheck_file = None
         exclude = None
         firststage_exclude = None
-        if "precheck_file" in config:
-            precheck_file = config["precheck_file"]
-        if "exclude" in config:
-            exclude = config["exclude"].split(",")
-        if "firststage_exclude" in config:
-            firststage_exclude = config["firststage_exclude"].split(",")
+        if "rsync_precheck_file" in config:
+            precheck_file = config["rsync_precheck_file"]
+        if "rsync_exclude" in config:
+            exclude = config["rsync_exclude"].split(",")
+        if "rsync_firststage_exclude" in config:
+            firststage_exclude = config["rsync_firststage_exclude"].split(",")
         return rsync(
-            config["remote"],
+            f"rsync://{config['host']}/{config['remote_dir']}",
             config["dest"],
             bwlimit_mbps=bwlimit_mbps,
             precheck_file=precheck_file,
             firststage_exclude=firststage_exclude,
             exclude=exclude
         )
+    elif config["type"] == "debmirror":
+        return debmirror(
+            config["host"],
+            config["remote_dir"],
+            config["dest"],
+            config["deb_dists"].split(","),
+            config["deb_arch"].split(","),
+            config["deb_sections"].split(","),
+            bwlimit_mbps=bwlimit_mbps,
+        )
     else:
-        print(f"Unknown sync type {config['type']}")
+        print(f"Unknown sync type {config['type']}", flush=True)
 
     return False
 
@@ -222,7 +289,7 @@ def mirror(config_path: str) -> bool:
     try:
         config.read(config_path)
     except Exception as e:
-        print(f"Failed to read config {config_path}: {e}")
+        print(f"Failed to read config {config_path}: {e}", flush=True)
         return False
 
     # Config format

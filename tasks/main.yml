@@ -1,8 +1,9 @@
 ---
-- name: "APT: Install nginx"
+- name: "APT: Install dependencies"
   ansible.builtin.apt:
     pkg:
       - "nginx"
+      - "debmirror"
       - "python3-certbot"
       - "python3-certbot-nginx"
     state: present
@@ -15,10 +16,11 @@
     state: present
   when: ansible_os_family == 'Debian' and mirror_dns_provider == 'cloudflare'
 
-- name: "DNF: Install nginx"
+- name: "DNF: Install dependencies"
   ansible.builtin.dnf:
     name:
       - "nginx"
+      - "debmirror"
       - "python3-certbot"
       - "python3-certbot-nginx"
     state: present

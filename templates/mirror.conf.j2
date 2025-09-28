@@ -5,20 +5,27 @@ user=nginx
 {% for site in mirror_sites %}
 [{{ site.id }}]
 name={{ site.name }}
-remote={{ site.remote }}
+host={{ site.host }}
+remote_dir={{ site.remote_dir }}
 dest={{ mirror_destination }}/{{ site.id }}
 {% if site.type == "rsync" %}
 type=rsync
-{%   if site.exclude is defined %}
-exclude={{ site.exclude|join(",") }}
+{%   if site.rsync_exclude is defined %}
+rsync_exclude={{ site.rsync_exclude|join(",") }}
 {%   endif %}
-{%   if site.precheck_file is defined %}
-precheck_file={{ site.precheck_file }}
+{%   if site.rsync_precheck_file is defined %}
+rsync_precheck_file={{ site.rsync_precheck_file }}
 {%   endif %}
-{%   if site.firststage_exclude is defined %}
-firststage_exclude={{ site.firststage_exclude|join(",") }}
+{%   if site.rsync_firststage_exclude is defined %}
+rsync_firststage_exclude={{ site.rsync_firststage_exclude|join(",") }}
 {%   endif %}
+{% elif site.type == "debmirror" %}
+type=debmirror
+deb_dists={{ site.deb_dists|join(",") }}
+deb_arch={{ site.deb_arch|default(["amd64"])|join(",") }}
+deb_sections={{ site.deb_sections|default([ "main", "contrib", "non-free", "main/debian-installer" ])|join(",") }}
 {% else %}
 {{ notdefiend | mandatory(msg='type ' ~ site.type ~ ' unknown') }}
 {% endif %}
+
 {% endfor %}
