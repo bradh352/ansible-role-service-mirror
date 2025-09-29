@@ -33,6 +33,33 @@
     state: present
   when: ansible_os_family == 'RedHat' and mirror_dns_provider == 'cloudflare'
 
+- name: "Make mirror directory"
+  file:
+    path: "{{ mirror_destination }}"
+    mode: "775"
+    state: directory
+    owner: nginx
+    setype: httpd_sys_content_t
+
+- name: "See if data disk is formatted"
+  shell: "lsblk -n -o FSTYPE {{ mirror_data_disk }}"
+  register: data_disk
+  changed_when: 'xfs' not in data_disk.stdout
+
+- name: "Format data disk"
+  shell: "mkfs.xfs {{ mirror_data_disk }}"
+  when: data_disk.changed
+
+- name: "Create fstab entry"
+  lineinfile:
+    path: /etc/fstab
+    line: "{{ mirror_data_disk }} {{ mirror_destination }} xfs defaults 0 1"
+  register: fstab
+
+- name: "Mount data disk"
+  shell: "mount -a"
+  when: fstab.changed
+
 - name: "UFW: enable http"
   community.general.ufw:
     rule: allow
@@ -74,14 +101,6 @@
     owner: nginx
     mode: "750"
     state: directory
-
-- name: "Make mirror directory"
-  file:
-    path: "{{ mirror_destination }}"
-    mode: "775"
-    state: directory
-    owner: nginx
-    setype: httpd_sys_content_t
 
 - name: "Install cron task"
   copy:

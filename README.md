@@ -11,6 +11,8 @@ This role is designed to deploy a repository mirror.
 ## Variables
 
 - `mirror_bwlimit`: Bandwidth limit in Mbps. Defaults to `100` if not specified.
+- `mirror_data_disk`: Location for data disk. Will format this device and
+  mount to `mirror_destination`.
 - `mirror_destination`: Top level destination for mirrored files. Default is
   `/var/www`.
 - `mirror_sites`: List of mirrors to maintain, each mirror will contain these
