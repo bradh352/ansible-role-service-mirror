@@ -44,7 +44,7 @@
 - name: "See if data disk is formatted"
   shell: "lsblk -n -o FSTYPE {{ mirror_data_disk }}"
   register: data_disk
-  changed_when: 'xfs' not in data_disk.stdout
+  changed_when: "'xfs' not in data_disk.stdout"
 
 - name: "Format data disk"
   shell: "mkfs.xfs {{ mirror_data_disk }}"
