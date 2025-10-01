@@ -161,3 +161,9 @@
   shell: "certbot certonly --manual --preferred-challenges=dns --manual-auth-hook /usr/local/bin/godaddydnsauth.sh --manual-cleanup-hook /usr/local/bin/godaddydnsauthclean.sh -d {{ inventory_hostname }} --agree-tos -n -m {{ mirror_dns_email }} --deploy-hook 'systemctl reload nginx'"
   when: mirror_dns_provider == "godaddy" and "VALID" not in certbot.stdout
   throttle: 1
+
+- name: "Enable nginx"
+  service:
+    name: nginx
+    state: started
+    enabled: yes
