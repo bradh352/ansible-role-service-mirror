@@ -96,13 +96,6 @@
     owner: root
     mode: "755"
 
-- name: "Make lock directory"
-  file:
-    path: /var/run/mirror
-    owner: nginx
-    mode: "750"
-    state: directory
-
 - name: "Install cron task"
   copy:
     src: mirror.cron
