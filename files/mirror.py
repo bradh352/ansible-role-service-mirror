@@ -36,6 +36,19 @@ def ensuredir(path: str) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
+def is_redhat_based():
+    """
+    Checks if the current system is a Red Hat-based distribution.
+    """
+    if os.path.exists('/etc/redhat-release'):
+        with open('/etc/redhat-release', 'r') as f:
+            content = f.read()
+            if "Red Hat" in content or "CentOS" in content or "Fedora" in content or \
+               "Rocky Linux" in content or "AlmaLinux" in content:
+                return True
+    return False
+
+
 def args_to_cmdline(args: List[str]) -> str:
     def quote_arg(arg):
         if " " not in arg and '"' not in arg and "\\" not in arg and "*" not in arg and "|" not in arg:
@@ -197,6 +210,11 @@ def rsync(
 
     print("* Running Final Sync", flush=True)
     success, _ = run_process(common_args + final_args + [ remote, dest ], retry_codes=[10])
+
+    if success and is_redhat_based():
+        print(f"* Restoring SELinux context on {dest}", flush=True)
+        _, _ = run_process([ "restorecon", "-R", dest])
+
     return success
 
 def debmirror(
@@ -249,6 +267,11 @@ def debmirror(
             dest,
         ]
     )
+
+    if success and is_redhat_based():
+        print(f"* Restoring SELinux context on {dest}", flush=True)
+        _, _ = run_process([ "restorecon", "-R", dest])
+
     return success
 
 
