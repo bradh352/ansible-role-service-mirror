@@ -49,24 +49,50 @@ def args_to_cmdline(args: List[str]) -> str:
     return " ".join(quote_arg(a) for a in args)
 
 
-def run_process(args: List[str], capture_output: bool = False) -> Tuple[bool, Optional[str]]:
+def run_process(
+    args: List[str],
+    capture_output: bool = False,
+    retry_codes: Optional[List[int]] = None,
+    retry_count: Optional[int] = None,
+) -> Tuple[bool, Optional[str]]:
     """
     Executes a process with logging.
 
     Parameters:
       args[List[str]]: List of arguments
       capture_output[bool]: Whether or not to capture the output and return it.
+      retry_codes[Optional[List[int]]]: List of codes eligible for retry
+      retry_count[Optional[int]]: Number of times to retry on eligible codes.
+        Only relevant if retry_codes is set.  If this isn't set, defaults to 5.
 
     Returns:
       success[bool]: Whether or not command was successful
       stdout[Optional[str]]: Stdout string output if capture_output=True
     """
-    print("\n* Running: {}".format(args_to_cmdline(args)), flush=True)
-    try:
-        result = subprocess.run(args, capture_output=capture_output)
-    except Exception as e:
-        print(f"* FAILED: {str(e)}", flush=True)
-        return False, None
+
+    if retry_count is None:
+        retry_count = 5
+
+    result = None
+
+    for i in range(retry_count):
+        print("\n* Running: {}".format(args_to_cmdline(args)), flush=True)
+        try:
+            result = subprocess.run(args, capture_output=capture_output)
+        except Exception as e:
+            print(f"* FAILED: {str(e)}", flush=True)
+            return False, None
+
+        if result.returncode == 0:
+            break
+
+        if retry_codes is None or result.returncode not in retry_codes:
+            break
+
+        print(f"* RETRYING due to rc={result.returncode}", flush=True)
+
+    if result is None:
+        raise Exception("The impossible happened. This is making pyright happy")
 
     if result.returncode != 0:
         print(f"* FAILED (rc={result.returncode})", flush=True)
@@ -129,7 +155,8 @@ def rsync(
                 f"{remote}/{precheck_file}",
                 f"{dest}/{precheck_file}"
             ],
-            capture_output=True
+            capture_output=True,
+            retry_codes=[10],
         )
         if not success:
             return False
@@ -162,14 +189,14 @@ def rsync(
         extra_exclude = []
         for pattern in firststage_exclude:
             extra_exclude.append(f"--exclude={pattern}")
-        success, _ = run_process(common_args + extra_exclude + [ remote,  dest ])
+        success, _ = run_process(common_args + extra_exclude + [ remote,  dest ], retry_codes=[10])
         if not success:
             return False
 
     final_args = [ "--delete-delay", "--delay-updates" ]
 
     print("* Running Final Sync", flush=True)
-    success, _ = run_process(common_args + final_args + [ remote, dest ])
+    success, _ = run_process(common_args + final_args + [ remote, dest ], retry_codes=[10])
     return success
 
 def debmirror(
