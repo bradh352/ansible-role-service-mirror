@@ -53,7 +53,8 @@
 - name: "Create fstab entry"
   lineinfile:
     path: /etc/fstab
-    line: "{{ mirror_data_disk }} {{ mirror_destination }} xfs defaults{{ ',context=system_u:object_r:httpd_sys_content_t' if ansible_os_family == 'RedHat' else '' }} 0 1"
+    regexp: "^{{ mirror_data_disk }} .*"
+    line: "{{ mirror_data_disk }} {{ mirror_destination }} xfs defaults{{ ',context=system_u:object_r:httpd_sys_content_t:s0' if ansible_os_family == 'RedHat' else '' }} 0 1"
   register: fstab
 
 - name: "Mount data disk"
