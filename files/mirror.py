@@ -8,7 +8,7 @@ import subprocess
 import sys
 from typing import List, Optional, Tuple
 
-LOCK_FILE = "/var/run/mirror/mirror.lock"
+LOCK_FILE = "/tmp/mirror.lock"
 
 def ensuredir(path: str) -> Tuple[bool, Optional[str]]:
     """
