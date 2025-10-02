@@ -6,6 +6,7 @@ import getpass
 import os
 import subprocess
 import sys
+import time
 from typing import List, Optional, Tuple
 
 LOCK_FILE = "/tmp/mirror.lock"
@@ -103,6 +104,7 @@ def run_process(
             break
 
         print(f"* RETRYING due to rc={result.returncode}", flush=True)
+        time.sleep(5)
 
     if result is None:
         raise Exception("The impossible happened. This is making pyright happy")
