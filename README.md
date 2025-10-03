@@ -42,11 +42,6 @@ This role is designed to deploy a repository mirror.
   - `deb_sections`: List of debian sections to sync for `debmirror`. Defaults to
     `[ "main", "contrib", "non-free", "main/debian-installer" ]` if not
     specified.
-- `mirror_dns_email`: Used for certbot to specify email to provider.
-- `mirror_dns_provider`: DNS provider in use for performing the DNS-01
-  challenge.  Valid values are currently: `godaddy`, `cloudflare`
-- `mirror_dns_apikey`: API Key for the DNS provider to be able to create
-  a TXT record for `_acme-challenge.{{ inventory_hostname }}`.  This API should
-  be restricted to exactly that access and nothing more.  Use `Key:Secret` for
-  Godaddy keys. For GoDaddy see some information here:
-  https://community.letsencrypt.org/t/godaddy-dns-and-certbot-dns-challenge-scripts/210189
+- `mirror_tls_hostname`: Required. Hostname for TLS certificates
+- `mirror_tlscert`: Required. Path to tls certificate.
+- `mirror_tlskey`: Required. Path to tls private key.
