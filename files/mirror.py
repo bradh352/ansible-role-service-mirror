@@ -66,6 +66,7 @@ def args_to_cmdline(args: List[str]) -> str:
 def run_process(
     args: List[str],
     capture_output: bool = False,
+    success_codes: List[int] = [0],
     retry_codes: Optional[List[int]] = None,
     retry_count: Optional[int] = None,
 ) -> Tuple[bool, Optional[str]]:
@@ -97,7 +98,7 @@ def run_process(
             print(f"* FAILED: {str(e)}", flush=True)
             return False, None
 
-        if result.returncode == 0:
+        if result.returncode in success_codes:
             break
 
         if retry_codes is None or result.returncode not in retry_codes:
@@ -109,7 +110,7 @@ def run_process(
     if result is None:
         raise Exception("The impossible happened. This is making pyright happy")
 
-    if result.returncode != 0:
+    if result.returncode not in success_codes:
         print(f"* FAILED (rc={result.returncode})", flush=True)
         return False, None
 
@@ -159,6 +160,8 @@ def rsync(
     if not dest.endswith("/"):
         dest = dest + "/"
 
+    success_codes = [0, 24] # 24 is file vanished, can happen if upstream mirror is syncing
+
     if precheck_file is not None:
         print("* Running precheck", flush=True)
         success, stdout = run_process(
@@ -171,6 +174,7 @@ def rsync(
                 f"{dest}/{precheck_file}"
             ],
             capture_output=True,
+            success_codes=success_codes,
             retry_codes=[10],
         )
         if not success:
@@ -204,14 +208,16 @@ def rsync(
         extra_exclude = []
         for pattern in firststage_exclude:
             extra_exclude.append(f"--exclude={pattern}")
-        success, _ = run_process(common_args + extra_exclude + [ remote,  dest ], retry_codes=[10])
+        success, _ = run_process(
+            common_args + extra_exclude + [ remote,  dest ], success_codes=success_codes, retry_codes=[10]
+        )
         if not success:
             return False
 
     final_args = [ "--delete-delay", "--delay-updates" ]
 
     print("* Running Final Sync", flush=True)
-    success, _ = run_process(common_args + final_args + [ remote, dest ], retry_codes=[10])
+    success, _ = run_process(common_args + final_args + [ remote, dest ], success_codes=success_codes, retry_codes=[10])
 
     if success and is_redhat_based():
         print(f"* Restoring SELinux context on {dest}", flush=True)

@@ -15,6 +15,13 @@ This role is designed to deploy a repository mirror.
   mount to `mirror_destination`.
 - `mirror_destination`: Top level destination for mirrored files. Default is
   `/var/www`.
+- `mirror_files`: Explicit list of files to download.  The download is performed
+  during the ansible playbook run.  There is no detection performed if the file
+  is up to date.  Mainly used for things like downloading known GPG keys.
+  - `destdir`: Relative destination directory to `mirror_destination`.
+    Directory will be created if it does not exist.
+  - `url`: URL of file to download.
+  - `filename`: Optional.  Will use the filename from the URL if not specified.
 - `mirror_sites`: List of mirrors to maintain, each mirror will contain these
   attributes:
   - `id`: Short identifier for mirror (e.g. `rocky`).  Will be used as part of

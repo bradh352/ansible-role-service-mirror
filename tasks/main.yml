@@ -91,3 +91,7 @@
     name: nginx
     state: started
     enabled: yes
+
+- name: "Mirror files"
+  include_tasks: "mirror_files.yml"
+  with_items: "{{ mirror_files }}"

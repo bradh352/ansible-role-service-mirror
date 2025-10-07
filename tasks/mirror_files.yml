@@ -1,0 +1,18 @@
+---
+- name: "Determine filename"
+  set_fact:
+    filename: "{{ item.filename|default(item.url | split('/') | last) }}"
+- name: "Ensure destination directory exists"
+  file:
+    path: "{{ mirror_destination }}/{{ item.destdir }}"
+    state: directory
+    owner: nginx
+    setype: "{{ 'httpd_sys_content_t' if ansible_os_family == 'RedHat' else omit }}"
+    mode: "0755"
+- name: "Download file"
+  ansible.builtin.get_url:
+    owner: nginx
+    mode: "644"
+    setype: "{{ 'httpd_sys_content_t' if ansible_os_family == 'RedHat' else omit }}"
+    url: "{{ item.url }}"
+    dest: "{{ mirror_destination }}/{{ item.destdir }}/{{ filename }}"
