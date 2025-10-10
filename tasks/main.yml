@@ -41,6 +41,14 @@
   shell: "mount -a"
   when: fstab.changed
 
+- name: "Make sure perms on mirror directory are proper"
+  file:
+    path: "{{ mirror_destination }}"
+    mode: "775"
+    state: directory
+    owner: nginx
+    setype: httpd_sys_content_t
+
 - name: "UFW: enable http"
   community.general.ufw:
     rule: allow
