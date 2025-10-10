@@ -1,4 +1,18 @@
 ---
+- name: "APT: Install dependencies"
+  ansible.builtin.apt:
+    pkg:
+      - "nginx"
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- name: "DNF: Install dependencies"
+  ansible.builtin.dnf:
+    name:
+      - "nginx"
+    state: present
+  when: ansible_os_family == 'RedHat'
+
 - name: "Make mirror directory"
   file:
     path: "{{ mirror_destination }}"
