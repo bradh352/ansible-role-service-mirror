@@ -225,6 +225,7 @@ def rsync(
 
     return success
 
+
 def debmirror(
     host: str,
     remote_dir: str,
@@ -232,7 +233,8 @@ def debmirror(
     dists: List[str],
     arch: List[str],
     sections: List[str],
-    bwlimit_mbps: int = 100
+    method: str = "rsync",
+    bwlimit_mbps: int = 100,
 ) -> bool:
     """
     Perform sync of remote repository using debmirror.
@@ -244,7 +246,8 @@ def debmirror(
     arch [List[str]]:     List of archictectures, e.g. [ "amd64", "aarch64" ]
     sections [List[str]]: List of sections, e.g.
                           [ "main", "contrib", "non-free", "main/debian-installer" ]
-    bwlimit_mbps[int]:    Bandwidth limit. Defaults to 100Mbps.
+    method [str]:         Download method. "rsync" or "http". Defaults to rsync.
+    bwlimit_mbps [int]:   Bandwidth limit. Defaults to 100Mbps.
     Returns:
       success[bool]: Whether or not sync completed successfully
 
@@ -259,23 +262,101 @@ def debmirror(
     if not dest.endswith("/"):
         dest = dest + "/"
 
-    success, _ = run_process(
+    if not remote_dir.endswith("/"):
+        remote_dir = remote_dir + "/"
+
+    args = [
+        "debmirror",
+        f"--method={method}",
+        f"--host={host}",
+        f"--root={remote_dir}",
+        f"--dist={','.join(dists)}",
+        f"--arch={','.join(arch)}",
+        f"--section={','.join(sections)}",
+        "--no-check-gpg",
+    ]
+
+    if method == "rsync":
+        args.extend(
+            [
+                "--diff=none", # Typically most efficient when used with rsync method
+                "--rsync-batch=10000", # Defaults to 200 which seems low
+                f"--rsync-options=-aIL --partial --bwlimit={bwlimit_mbps * 1024}",
+            ]
+        )
+
+    args.extend(
         [
-            "debmirror",
-            "--method=rsync",
-            "--diff=none", # Typically most efficient when used with rsync method
-            f"--host={host}",
-            f"--root={remote_dir}",
-            f"--dist={','.join(dists)}",
-            f"--arch={','.join(arch)}",
-            f"--section={','.join(sections)}",
-            "--rsync-batch=10000", # Defaults to 200 which seems low
-            "--no-check-gpg",
-            f"--rsync-options=-aIL --partial --bwlimit={bwlimit_mbps * 1024}",
             dest,
         ]
     )
 
+    success, _ = run_process(args)
+    if success and is_redhat_based():
+        print(f"* Restoring SELinux context on {dest}", flush=True)
+        _, _ = run_process([ "restorecon", "-R", dest])
+
+    return success
+
+
+def reposync(
+    name: str,
+    host: str,
+    remote_dir: str,
+    dest: str,
+) -> bool:
+    """
+    Perform sync of remote repository using reposync.
+    name [str]:           Unique name of repository
+    host [str]:           Remote hostname
+    remote_dir [str]:     Remote directory
+    dest [str]:           Destination directory for files
+
+    Returns:
+      success[bool]: Whether or not sync completed successfully
+
+    Output:
+      stdout/stderr are output from the upstream process.
+    """
+    success, errmsg = ensuredir(dest)
+    if not success:
+        print(f"destination '{dest}' invalid: {errmsg}", file=sys.stderr)
+        return False
+
+    if not dest.endswith("/"):
+        dest = dest + "/"
+
+    # Create repo file as there's no way to pass this data
+    with open(f"/etc/mirror/yum.repos.d/{name}.repo", "w") as f:
+        f.write(
+            f"""[{name}]
+name={name}
+baseurl=https://{host}/{remote_dir}
+repo_gpgcheck=0
+enabled=0
+gpgcheck=0
+sslverify=1
+"""
+        )
+
+    args = [
+        "dnf",
+        "-c",
+        "/etc/mirror/dnf.conf",
+        f"--setopt=reposdir=/etc/mirror/yum.repos.d/",
+        "reposync",
+        f"--repoid={name}",
+        f"--download-path={dest}",
+        "--delete",
+        "--download-metadata",
+        "--norepopath",
+        "--remote-time",
+    ]
+
+    #for a in arch:
+    #    args.append(f"--arch=arch")
+
+    success, _ = run_process(args)
     if success and is_redhat_based():
         print(f"* Restoring SELinux context on {dest}", flush=True)
         _, _ = run_process([ "restorecon", "-R", dest])
@@ -326,6 +407,10 @@ def mirror_sect(config, section_name: str, bwlimit_mbps: int) -> bool:
             exclude=exclude
         )
     elif config["type"] == "debmirror":
+        method = config.get("deb_method")
+        if method is None:
+            method = "rsync"
+
         return debmirror(
             config["host"],
             config["remote_dir"],
@@ -333,7 +418,15 @@ def mirror_sect(config, section_name: str, bwlimit_mbps: int) -> bool:
             config["deb_dists"].split(","),
             config["deb_arch"].split(","),
             config["deb_sections"].split(","),
+            method=method,
             bwlimit_mbps=bwlimit_mbps,
+        )
+    elif config["type"] == "reposync":
+        return reposync(
+            section_name,
+            config["host"],
+            config["remote_dir"],
+            config["dest"],
         )
     else:
         print(f"Unknown sync type {config['type']}", flush=True)
@@ -358,12 +451,16 @@ def mirror(config_path: str) -> bool:
     #
     # [shortname]
     # name=long name
-    # type=<type> -- rsync, ...
+    # type=<type> -- rsync, debmirror, reposync...
     # remote=<remote path>
     # dest=<local directory>
-    # exclude=<list> -- list of patterns to always exclude
-    # precheck_file=<file> -- optional
-    # firststage_exclude=<list> -- comma delimited list of excludes for first stage of rsync. Optional.
+    # rsync_exclude=<list> -- list of patterns to always exclude (rsync only)
+    # rsync_precheck_file=<file> -- optional (rsync only)
+    # rsync_firststage_exclude=<list> -- comma delimited list of excludes for first stage of rsync. Optional. (rsync only)
+    # deb_dists=
+    # deb_arch=
+    # deb_sections=
+    # deb_method=<method> -- rsync, http
 
     bwlimit_mbps=100
     if "DEFAULT" in config:

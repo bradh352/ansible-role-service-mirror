@@ -24,6 +24,9 @@ type=debmirror
 deb_dists={{ site.deb_dists|join(",") }}
 deb_arch={{ site.deb_arch|default(["amd64"])|join(",") }}
 deb_sections={{ site.deb_sections|default([ "main", "contrib", "non-free", "main/debian-installer" ])|join(",") }}
+deb_method={{ site.deb_method|default("rsync") }}
+{% elif site.type == "reposync" %}
+type=reposync
 {% else %}
 {{ notdefiend | mandatory(msg='type ' ~ site.type ~ ' unknown') }}
 {% endif %}

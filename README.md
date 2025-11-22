@@ -27,10 +27,14 @@ This role is designed to deploy a repository mirror.
   - `id`: Short identifier for mirror (e.g. `rocky`).  Will be used as part of
     the destination.
   - `name`: Name of Mirror (e.g. `Rocky Linux`)
-  - `type`: Type sync to perform. Current options are `rsync` and `debmirror`.
-    In general `rsync` is prefered for RedHat-based distributions as well as
-    full Debian-based distribution clones.  `debmirror` is preferred for partial
-    Debian-based clones (only certain releases architectures).
+  - `type`: Type sync to perform. Current options are:
+    - `rsync` is prefered for RedHat-based distributions as well as full
+      Debian-based distribution clones when the software being mirrored
+      supports rsync.
+    - `debmirror` used partial debian (and ubuntu) mirrors, or when rsync is not
+      available.
+    - `reposync` used for RedHat-based distributions when rsync is not
+      available.
   - `host`: Remote hostname for repository, E.g. `plug-mirror.rcac.purdue.edu`.
   - `remote_dir`: Remote directory or name, E.g. `rocky`
   - `rsync_exclude`: Optional. Rsync only. List of patterns to exclude from
@@ -49,6 +53,8 @@ This role is designed to deploy a repository mirror.
   - `deb_sections`: List of debian sections to sync for `debmirror`. Defaults to
     `[ "main", "contrib", "non-free", "main/debian-installer" ]` if not
     specified.
+  - `deb_method`: Fetch method to use for debmirror. Options are `rsync`
+    and `http`. Defaults to `rsync`.
 - `mirror_tls_hostname`: Required. Hostname for TLS certificates
 - `mirror_tlscert`: Required. Path to tls certificate.
 - `mirror_tlskey`: Required. Path to tls private key.

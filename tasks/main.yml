@@ -3,6 +3,8 @@
   ansible.builtin.apt:
     pkg:
       - "nginx"
+      - "debmirror"
+      - "dnf-plugins-core" # needed for dnf reposync
     state: present
   when: ansible_os_family == 'Debian'
 
@@ -10,6 +12,7 @@
   ansible.builtin.dnf:
     name:
       - "nginx"
+      - "debmirror"
     state: present
   when: ansible_os_family == 'RedHat'
 
@@ -83,6 +86,27 @@
     dest: /usr/local/bin/mirror.py
     owner: root
     mode: "755"
+
+- name: "Create directory for configuration"
+  file:
+    path: /etc/mirror
+    state: directory
+    owner: "root"
+    mode: "755"
+
+- name: "Create directory for yum repos"
+  file:
+    path: /etc/mirror/yum.repos.d/
+    state: directory
+    owner: "{{ 'nginx' if ansible_os_family == 'RedHat' else 'www-data' }}"
+    mode: "755"
+
+- name: "Create DNF configuration"
+  copy:
+    src: dnf.conf
+    dest: /etc/mirror/dnf.conf
+    owner: "root"
+    mode: "644"
 
 - name: "Install cron task"
   copy:
